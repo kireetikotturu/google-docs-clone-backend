@@ -1,0 +1,29 @@
+app.post("/save-letter", verifyToken, async (req, res) => {
+  try {
+    const { letter, userToken } = req.body;
+    console.log("🔹 Received userToken:", userToken); // 🔥 Debugging: Check if frontend is sending token
+
+    if (!userToken) {
+      console.error("❌ No Google OAuth token received from frontend.");
+      return res.status(401).json({ message: "❌ Unauthorized: No Google OAuth token provided" });
+    }
+
+    // 🔹 Authenticate user with Google OAuth2
+    const oauth2Client = new OAuth2Client();
+    oauth2Client.setCredentials({ access_token: userToken });
+
+    // ✅ Save to MongoDB
+    const newLetter = new Letter({ content: letter, userId: req.user.uid });
+    await newLetter.save();
+    console.log("✅ Letter saved to MongoDB:", newLetter._id);
+
+    // ✅ Save to Google Drive
+    console.log("🔹 Uploading file to Google Drive...");
+    const fileId = await uploadToDrive(letter, oauth2Client);
+
+    res.json({ message: "✅ Letter saved successfully!", letter: newLetter, fileId });
+  } catch (error) {
+    console.error("❌ Error saving letter:", error);
+    res.status(500).json({ message: "❌ Error saving letter" });
+  }
+});
