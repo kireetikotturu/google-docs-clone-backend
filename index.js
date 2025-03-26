@@ -2,9 +2,7 @@ const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
 const admin = require("firebase-admin");
-const { OAuth2Client } = require("google-auth-library");
 const uploadToDrive = require("./uploadToDrive");
-
 require("dotenv").config();
 const Letter = require("./models/Letter");
 
@@ -39,7 +37,7 @@ const verifyToken = async (req, res, next) => {
   }
 };
 
-// ✅ Connect to MongoDB Atlas
+// ✅ Connect to MongoDB
 mongoose.connect(process.env.MONGO_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
@@ -50,28 +48,16 @@ mongoose.connect(process.env.MONGO_URI, {
 // ✅ Save Letter to MongoDB & Google Drive
 app.post("/save-letter", verifyToken, async (req, res) => {
   try {
-    const { letter, userToken } = req.body;
-    if (!userToken) {
-      return res.status(401).json({ message: "❌ Unauthorized: No Google OAuth token provided" });
-    }
-
-    // ✅ Verify Google OAuth Token
-    const oauth2Client = new OAuth2Client();
-    oauth2Client.setCredentials({ access_token: userToken });
-
-    try {
-      await oauth2Client.getTokenInfo(userToken);
-    } catch (error) {
-      console.error("❌ Invalid Google OAuth token:", error.message);
-      return res.status(401).json({ message: "❌ Invalid Google OAuth token" });
-    }
+    const { letter } = req.body;
 
     // ✅ Save Letter to MongoDB
     const newLetter = new Letter({ content: letter, userId: req.user.uid });
     await newLetter.save();
+    console.log("✅ Letter saved to MongoDB:", newLetter._id);
 
     // ✅ Save to Google Drive
-    const fileId = await uploadToDrive(letter, oauth2Client);
+    console.log("🔹 Uploading file to Google Drive...");
+    const fileId = await uploadToDrive(letter, req.user.uid);
 
     res.json({ message: "✅ Letter saved successfully!", letter: newLetter, fileId });
   } catch (error) {
@@ -80,11 +66,23 @@ app.post("/save-letter", verifyToken, async (req, res) => {
   }
 });
 
+// ✅ Get All Saved Letters (Only for Authenticated Users)
+app.get("/letters", verifyToken, async (req, res) => {
+  try {
+    const letters = await Letter.find({ userId: req.user.uid });
+    res.json(letters);
+  } catch (error) {
+    console.error("❌ Error fetching letters:", error);
+    res.status(500).json({ message: "❌ Error fetching letters" });
+  }
+});
+
 // ✅ Start Server
 app.listen(PORT, () => {
   console.log(`🚀 Server is running on port ${PORT}`);
 });
 
+// ✅ Root Route
 app.get("/", (req, res) => {
   res.send("✅ Backend is running!");
 });
