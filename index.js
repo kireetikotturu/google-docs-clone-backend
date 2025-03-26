@@ -41,11 +41,11 @@ const verifyToken = async (req, res, next) => {
 };
 
 // ✅ Connect to MongoDB
-mongoose
-  .connect("mongodb://127.0.0.1:27017/google-docs-clone", {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-  })
+mongoose.connect(process.env.mongodb+srv://kireetikotturu:<Chandu@28052003>@cluster0.rscrsdu.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+})
+
   .then(() => console.log("✅ Connected to MongoDB"))
   .catch((err) => console.error("❌ MongoDB connection error:", err));
 
