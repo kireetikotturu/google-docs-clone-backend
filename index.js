@@ -3,8 +3,7 @@ const mongoose = require("mongoose");
 const cors = require("cors");
 const admin = require("firebase-admin");
 const { OAuth2Client } = require("google-auth-library");
-const { google } = require("googleapis");
-const uploadToDrive = require("./uploadToDrive"); // ✅ Import upload function
+const uploadToDrive = require("./uploadToDrive");
 
 require("dotenv").config();
 const Letter = require("./models/Letter");
@@ -40,7 +39,7 @@ const verifyToken = async (req, res, next) => {
   }
 };
 
-// ✅ Connect to MongoDB
+// ✅ Connect to MongoDB Atlas
 mongoose.connect(process.env.MONGO_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
@@ -48,64 +47,44 @@ mongoose.connect(process.env.MONGO_URI, {
 .then(() => console.log("✅ Connected to MongoDB Atlas"))
 .catch((err) => console.error("❌ MongoDB connection error:", err));
 
-
-
 // ✅ Save Letter to MongoDB & Google Drive
 app.post("/save-letter", verifyToken, async (req, res) => {
-    try {
-      const { letter, userToken } = req.body;
-      console.log("🔹 Received userToken:", userToken);
-  
-      if (!userToken) {
-        return res.status(401).json({ message: "❌ Unauthorized: No Google OAuth token provided" });
-      }
-  
-      // ✅ Verify Google OAuth Token
-      const oauth2Client = new OAuth2Client();
-      oauth2Client.setCredentials({ access_token: userToken });
-  
-      try {
-        const tokenInfo = await oauth2Client.getTokenInfo(userToken);
-        console.log("✅ Google OAuth Token Verified:", tokenInfo);
-      } catch (error) {
-        console.error("❌ Invalid Google OAuth token:", error.message);
-        return res.status(401).json({ message: "❌ Invalid Google OAuth token" });
-      }
-  
-      // ✅ Save Letter to MongoDB
-      const newLetter = new Letter({ content: letter, userId: req.user.uid });
-      await newLetter.save();
-      console.log("✅ Letter saved to MongoDB:", newLetter._id);
-  
-      // ✅ Save to Google Drive
-      console.log("🔹 Uploading file to Google Drive...");
-      const fileId = await uploadToDrive(letter, oauth2Client);
-  
-      res.json({ message: "✅ Letter saved successfully!", letter: newLetter, fileId });
-    } catch (error) {
-      console.error("❌ Error saving letter:", error);
-      res.status(500).json({ message: "❌ Error saving letter" });
-    }
-  });
-  
-
-// ✅ Get All Saved Letters (Only for Authenticated Users)
-app.get("/letters", verifyToken, async (req, res) => {
   try {
-    const letters = await Letter.find({ userId: req.user.uid });
-    res.json(letters);
+    const { letter, userToken } = req.body;
+    if (!userToken) {
+      return res.status(401).json({ message: "❌ Unauthorized: No Google OAuth token provided" });
+    }
+
+    // ✅ Verify Google OAuth Token
+    const oauth2Client = new OAuth2Client();
+    oauth2Client.setCredentials({ access_token: userToken });
+
+    try {
+      await oauth2Client.getTokenInfo(userToken);
+    } catch (error) {
+      console.error("❌ Invalid Google OAuth token:", error.message);
+      return res.status(401).json({ message: "❌ Invalid Google OAuth token" });
+    }
+
+    // ✅ Save Letter to MongoDB
+    const newLetter = new Letter({ content: letter, userId: req.user.uid });
+    await newLetter.save();
+
+    // ✅ Save to Google Drive
+    const fileId = await uploadToDrive(letter, oauth2Client);
+
+    res.json({ message: "✅ Letter saved successfully!", letter: newLetter, fileId });
   } catch (error) {
-    console.error("❌ Error fetching letters:", error);
-    res.status(500).json({ message: "❌ Error fetching letters" });
+    console.error("❌ Error saving letter:", error);
+    res.status(500).json({ message: "❌ Error saving letter" });
   }
 });
 
 // ✅ Start Server
 app.listen(PORT, () => {
-  console.log(`🚀 Server is running on http://localhost:${PORT}`);
+  console.log(`🚀 Server is running on port ${PORT}`);
 });
 
-// ✅ Root Route
 app.get("/", (req, res) => {
   res.send("✅ Backend is running!");
 });
