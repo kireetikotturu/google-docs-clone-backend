@@ -41,13 +41,13 @@ const verifyToken = async (req, res, next) => {
 };
 
 // ✅ Connect to MongoDB
-mongoose.connect(process.env.mongodb+srv://kireetikotturu:<Chandu@28052003>@cluster0.rscrsdu.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0, {
+mongoose.connect(process.env.MONGO_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
 })
-
   .then(() => console.log("✅ Connected to MongoDB"))
-  .catch((err) => console.error("❌ MongoDB connection error:", err));
+  .catch(err => console.error("❌ MongoDB connection error:", err));
+
 
 // ✅ Save Letter to MongoDB & Google Drive
 app.post("/save-letter", verifyToken, async (req, res) => {
