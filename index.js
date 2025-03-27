@@ -5,7 +5,8 @@ const admin = require("firebase-admin");
 const uploadToDrive = require("./uploadToDrive");
 require("dotenv").config();
 const Letter = require("./models/Letter");
-const { OAuth2Client } = require("google-auth-library"); // ✅ Add OAuth2Client
+const { OAuth2Client } = require("google-auth-library");
+const fs = require("fs");
 
 const app = express();
 const PORT = process.env.PORT || 5001;
@@ -13,10 +14,31 @@ const PORT = process.env.PORT || 5001;
 // ✅ Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(cors());
+app.use(
+  cors({
+    origin: ["http://localhost:3000", "https://your-deployed-frontend.com"],
+    methods: "GET,POST,PUT,DELETE",
+    allowedHeaders: "Content-Type,Authorization",
+    credentials: true,
+  })
+);
+
+// ✅ Fix Cross-Origin Issues
+app.use((req, res, next) => {
+  res.setHeader("Cross-Origin-Opener-Policy", "same-origin-allow-popups");
+  res.setHeader("Cross-Origin-Embedder-Policy", "require-corp");
+  next();
+});
 
 // ✅ Initialize Firebase Admin SDK
-const serviceAccount = JSON.parse(process.env.GOOGLE_APPLICATION_CREDENTIALS);
+const serviceAccountPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+if (!fs.existsSync(serviceAccountPath)) {
+  console.error("❌ GOOGLE_APPLICATION_CREDENTIALS file not found!");
+  process.exit(1);
+}
+
+const serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, "utf8"));
+
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
 });
@@ -39,38 +61,40 @@ const verifyToken = async (req, res, next) => {
 };
 
 // ✅ Connect to MongoDB
-mongoose.connect(process.env.MONGO_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-})
+mongoose
+  .connect(process.env.MONGO_URI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+  })
   .then(() => console.log("✅ Connected to MongoDB Atlas"))
   .catch((err) => console.error("❌ MongoDB connection error:", err));
 
 // ✅ Save Letter to MongoDB & Google Drive
 app.post("/save-letter", verifyToken, async (req, res) => {
   try {
-    const { letter, userToken } = req.body; // ✅ Receive the user's OAuth2 token from the frontend
-
-    console.log("🔹 Received OAuth2 Token:", userToken);
+    const { letter, userToken } = req.body;
 
     if (!userToken) {
       return res.status(401).json({ message: "❌ No OAuth2 token received from frontend" });
     }
 
-    // ✅ Create OAuth2 client using the user's token
+    console.log("🔹 Received OAuth2 Token:", userToken);
+
+    // ✅ Verify OAuth2 Token
     const oauth2Client = new OAuth2Client();
-    oauth2Client.setCredentials({
-      access_token: userToken, // Use the OAuth2 token passed from frontend
-    });
+    oauth2Client.setCredentials({ access_token: userToken });
+
+    const tokenInfo = await oauth2Client.getTokenInfo(userToken);
+    console.log("✅ Google OAuth Token Info:", tokenInfo);
 
     // ✅ Save Letter to MongoDB
     const newLetter = new Letter({ content: letter, userId: req.user.uid });
     await newLetter.save();
     console.log("✅ Letter saved to MongoDB:", newLetter._id);
 
-    // ✅ Save to Google Drive
+    // ✅ Upload to Google Drive
     console.log("🔹 Uploading file to Google Drive...");
-    const fileId = await uploadToDrive(letter, oauth2Client); // Pass OAuth2 client to uploadToDrive
+    const fileId = await uploadToDrive(letter, oauth2Client);
 
     res.json({ message: "✅ Letter saved successfully!", letter: newLetter, fileId });
   } catch (error) {
