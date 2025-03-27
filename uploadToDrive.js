@@ -1,13 +1,13 @@
 const { google } = require("googleapis");
 
-async function uploadToDrive(letter, auth) {
+async function uploadToDrive(letter, oauth2Client) {
   try {
     console.log("🔹 Uploading file to Google Drive using user's account...");
 
-    const drive = google.drive({ version: "v3", auth });
+    const drive = google.drive({ version: "v3", auth: oauth2Client }); // ✅ Use OAuth2 client for authentication
 
     const fileMetadata = {
-      name: `Letter_${Date.now()}.txt`,
+      name: `Letter_${Date.now()}.txt`, // You can change the file name format here
       mimeType: "text/plain",
       parents: ["root"], // ✅ Ensures file appears in "My Drive"
     };
@@ -17,6 +17,7 @@ async function uploadToDrive(letter, auth) {
       body: letter,
     };
 
+    // Create the Google Drive file
     const driveResponse = await drive.files.create({
       resource: fileMetadata,
       media: media,
