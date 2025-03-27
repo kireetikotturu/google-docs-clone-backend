@@ -5,6 +5,7 @@ const admin = require("firebase-admin");
 const uploadToDrive = require("./uploadToDrive");
 require("dotenv").config();
 const Letter = require("./models/Letter");
+const { OAuth2Client } = require("google-auth-library"); // ✅ Add OAuth2Client
 
 const app = express();
 const PORT = process.env.PORT || 5001;
@@ -42,13 +43,25 @@ mongoose.connect(process.env.MONGO_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
 })
-.then(() => console.log("✅ Connected to MongoDB Atlas"))
-.catch((err) => console.error("❌ MongoDB connection error:", err));
+  .then(() => console.log("✅ Connected to MongoDB Atlas"))
+  .catch((err) => console.error("❌ MongoDB connection error:", err));
 
 // ✅ Save Letter to MongoDB & Google Drive
 app.post("/save-letter", verifyToken, async (req, res) => {
   try {
-    const { letter } = req.body;
+    const { letter, userToken } = req.body; // ✅ Receive the user's OAuth2 token from the frontend
+
+    console.log("🔹 Received OAuth2 Token:", userToken);
+
+    if (!userToken) {
+      return res.status(401).json({ message: "❌ No OAuth2 token received from frontend" });
+    }
+
+    // ✅ Create OAuth2 client using the user's token
+    const oauth2Client = new OAuth2Client();
+    oauth2Client.setCredentials({
+      access_token: userToken, // Use the OAuth2 token passed from frontend
+    });
 
     // ✅ Save Letter to MongoDB
     const newLetter = new Letter({ content: letter, userId: req.user.uid });
@@ -57,7 +70,7 @@ app.post("/save-letter", verifyToken, async (req, res) => {
 
     // ✅ Save to Google Drive
     console.log("🔹 Uploading file to Google Drive...");
-    const fileId = await uploadToDrive(letter, req.user.uid);
+    const fileId = await uploadToDrive(letter, oauth2Client); // Pass OAuth2 client to uploadToDrive
 
     res.json({ message: "✅ Letter saved successfully!", letter: newLetter, fileId });
   } catch (error) {
