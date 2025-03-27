@@ -1,6 +1,6 @@
 app.post("/save-letter", verifyToken, async (req, res) => {
   try {
-    const { letter, userToken } = req.body;
+    const { letter, userToken } = req.body; // Get the letter and OAuth2 token from the request body
     console.log("🔹 Received userToken:", userToken); // 🔥 Debugging: Check if frontend is sending token
 
     if (!userToken) {
@@ -9,21 +9,22 @@ app.post("/save-letter", verifyToken, async (req, res) => {
     }
 
     // 🔹 Authenticate user with Google OAuth2
+    const { OAuth2Client } = require('google-auth-library');  // ✅ Ensure OAuth2Client is imported
     const oauth2Client = new OAuth2Client();
     oauth2Client.setCredentials({ access_token: userToken });
 
-    // ✅ Save to MongoDB
+    // ✅ Save Letter to MongoDB
     const newLetter = new Letter({ content: letter, userId: req.user.uid });
     await newLetter.save();
     console.log("✅ Letter saved to MongoDB:", newLetter._id);
 
     // ✅ Save to Google Drive
     console.log("🔹 Uploading file to Google Drive...");
-    const fileId = await uploadToDrive(letter, oauth2Client);
+    const fileId = await uploadToDrive(letter, oauth2Client); // Pass OAuth2 client to the upload function
 
-    res.json({ message: "✅ Letter saved successfully!", letter: newLetter, fileId });
+    res.json({ message: "✅ Letter saved successfully!", letter: newLetter, fileId }); // Return response with fileId
   } catch (error) {
-    console.error("❌ Error saving letter:", error);
+    console.error("❌ Error saving letter:", error);  // Log detailed error for debugging
     res.status(500).json({ message: "❌ Error saving letter" });
   }
 });
